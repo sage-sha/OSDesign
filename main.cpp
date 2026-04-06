@@ -26,7 +26,7 @@ struct Process {
     int priority;
     int totalBurst;
     int remainingBurst;
-    int executedSoFar;
+    int executed;
     int quantumUsed;
     int signalCount;
     bool finished;
@@ -61,18 +61,21 @@ Process makeProcess(int pid, char type) {
     p.priority = getPriority(type);
     p.totalBurst = getBurst(type);
     p.remainingBurst = getBurst(type);
-    p.executedSoFar = 0;
+    p.executed = 0;
     p.quantumUsed = 0;
     p.signalCount = 0;
     p.finished = false;
     return p;
 }
 
+
+// scheduling logic functions
+
 void runOneTick(Process& p) {
     if (p.finished) return;
 
     p.remainingBurst--;
-    p.executedSoFar++;
+    p.executed++;
     p.quantumUsed++;
 
     if (p.remainingBurst == 0) {
@@ -100,7 +103,7 @@ void checkAndCreateFork(Process processes[], int& processCount, int& nextPid, Pr
         return;
     }
 
-    if (runningProcess.executedSoFar > 0 && runningProcess.executedSoFar % 3 == 0) {
+    if (runningProcess.executed > 0 && runningProcess.executed % 3 == 0) {
         char childType = getChildType(runningProcess.type);
         processes[processCount] = makeProcess(nextPid, childType);
         enqueueByPriority(processes,processCount);
@@ -109,6 +112,8 @@ void checkAndCreateFork(Process processes[], int& processCount, int& nextPid, Pr
         nextPid++;
     }
 }
+
+// helper functions for scheduling logic
 
 bool hasReadyProcess() {
     return (front1 < rear1) || (front2 < rear2) || (front3 < rear3);
@@ -204,6 +209,15 @@ void handleSchedulingBoundary(Process processes[], int& runningIndex,GanttEntry 
 }
 
 
+void handleSignal(Process processes[], int runningIndex, int currentTime) {
+    if (runningIndex == -1) return;
+
+    if (currentTime % SIGNAL_INTERVAL == 0) {
+        processes[runningIndex].signalCount++;
+
+    }
+}
+
 
 int main() {
     Process processes[MAX_PROCESSES];
@@ -241,14 +255,22 @@ int main() {
 
         handleSchedulingBoundary(processes, runningIndex, gantt, ganttCount, sliceStartTime, currentTime);
 
+        handleSignal(processes, runningIndex, currentTime);
     }
 
-    // printing results
+    // printing Gantt by iterating over the recorded slices
 
     cout << "\nGantt Chart:\n";
     for (int i = 0; i < ganttCount; i++) {
         cout << "[" << gantt[i].startTime << "-" << gantt[i].endTime << "] : "
             << "P" << gantt[i].pid << '\n';
+    }
+
+    // printing signal counts for each process
+    cout << "\nSignal Counts:\n";
+    for (int i = 0; i < processCount; i++) {
+        cout << "P" << processes[i].pid << " : "
+             << processes[i].signalCount << '\n';
     }
 
     return 0;
